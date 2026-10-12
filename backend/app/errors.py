@@ -20,11 +20,15 @@ def not_found(what="Resource"):
     return ApiError(404, f"{what} not found")
 
 
-def json_body():
-    data = request.get_json(silent=True)
+def require_object(data):
+    """The parsed request body, which must be a JSON object."""
     if not isinstance(data, dict):
         raise bad_request("Expected a JSON object body")
     return data
+
+
+def json_body():
+    return require_object(request.get_json(silent=True))
 
 
 # --- field parsers -------------------------------------------------------

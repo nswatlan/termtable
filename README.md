@@ -39,24 +39,47 @@ The API uses port 5001 because macOS's AirPlay Receiver takes port 5000.
 
 ## How it fits together
 
+The backend is split into layers. A request flows down through them and each
+layer only talks to the one below it:
+
+```
+routes/  ->  services/  ->  repositories/  ->  db.py  ->  MySQL
+                 |
+                 v
+              logic/   (pure functions: grade math, conflicts, recurrence)
+```
+
+- **routes/** are the Flask blueprints. A handler reads the request (path,
+  query string, JSON body, session), calls one service function and returns
+  the result. No SQL and no business rules.
+- **services/** hold the business rules: validation, ownership checks
+  ("is this your event?"), enrollment checks, invitation states, and when to
+  commit. They never import Flask; the logged-in user's id is passed in.
+- **repositories/** hold every SQL statement. They take plain arguments,
+  return rows as dicts, and never commit or raise HTTP errors.
+- **logic/** is pure Python with unit tests and no database.
+
+`tests/test_architecture.py` enforces these rules (for example, a route that
+imports a repository fails the tests), so the layering can't quietly drift.
+
 ```
 backend/
   schema.sql            all tables (the source of truth for the data model)
   seed.py               sample terms, 20 courses, ~100 sections, assignments, reviews
+  migrate.py            adds new tables/columns to an existing database (runs on deploy)
   app/
-    auth.py             register / login / logout, session cookie, @login_required
-    courses.py          terms, course search, course detail, reviews
-    schedules.py        candidate schedules, add/swap/remove sections, commit
-    calendar.py         combined calendar feed + personal event CRUD
-    gradebook.py        per-class grades and score entry
-    enrollment.py       "what is this student taking" = committed schedules
-    logic/              pure functions, unit-tested in tests/test_logic.py
-      grades.py         weighted grade calculation
-      conflicts.py      time-conflict detection
-      recurrence.py     recurring-event and class-meeting expansion
+    __init__.py         app factory, registers the route blueprints
+    db.py, errors.py    connection helpers; API errors and input parsers
+    routes/             auth, catalog, reviews, schedules, calendar, sharing, homework, gradebook
+    services/           the same features, plus enrollment and events
+    repositories/       users, catalog, reviews, schedules, events (+ invitations),
+                        coursework (assignments, grades, weights), homework
+    logic/              grades.py, conflicts.py, recurrence.py
+  tests/                test_logic.py, test_architecture.py, test_frontend.py
 frontend/src/
-  pages/                Planner, Courses, CourseDetail, Calendar, Grades, GradeDetail, Login
-  components/           WeekGrid (planner grid), EventDialog, Stars
+  pages/                Planner, Courses, CourseDetail, Calendar, Assignments, Grades,
+                        GradeDetail, Reviews, Login
+  components/           WeekGrid, EventDialog, AssignmentDialog, Stars, Dialog
   lib/                  date helpers, overlap layout, colors
 ```
 
@@ -97,7 +120,7 @@ uncommitting and come back if the schedule is committed again.
 
 ### Grade calculation
 
-`app/logic/grades.py` works in three steps:
+`app/logic/grades.py` works in three steps (category mode):
 
 1. Each graded assignment becomes a percentage (`score / max_points`).
 2. Those percentages are averaged within each category.

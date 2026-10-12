@@ -40,16 +40,10 @@ def create_app(config=Config):
     db.init_app(app)
     errors.init_app(app)
 
-    from .auth import bp as auth_bp
-    from .calendar import bp as calendar_bp
-    from .courses import bp as courses_bp
-    from .gradebook import bp as gradebook_bp
-    from .homework import bp as homework_bp
-    from .schedules import bp as schedules_bp
-    from .sharing import bp as sharing_bp
+    from .routes import auth, calendar, catalog, gradebook, homework, reviews, schedules, sharing
 
-    for bp in (auth_bp, courses_bp, schedules_bp, calendar_bp, gradebook_bp, sharing_bp, homework_bp):
-        app.register_blueprint(bp, url_prefix="/api")
+    for module in (auth, catalog, reviews, schedules, calendar, gradebook, sharing, homework):
+        app.register_blueprint(module.bp, url_prefix="/api")
 
     @app.before_request
     def require_custom_header_on_writes():
