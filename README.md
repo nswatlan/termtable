@@ -177,7 +177,8 @@ docker run --rm -p 10000:10000 --env-file backend/.env \
 ### Updating an existing database
 
 `migrate.py` adds the new columns and tables without touching existing data, and it is
-safe to run repeatedly. The Docker image runs it automatically before Gunicorn starts,
+safe to run repeatedly. On a brand-new database with no tables, it instead creates
+the schema and loads the sample data. The Docker image runs it automatically before Gunicorn starts,
 so a Render deploy applies it to the Aiven database on its own. Existing sections get
 CRNs; existing reviews show "Professor not specified". Never run `seed.py` against
 Aiven, since it wipes every table.

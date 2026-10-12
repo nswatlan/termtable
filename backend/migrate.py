@@ -7,6 +7,10 @@ deployed database. This script only *adds* what is missing:
   - reviews.instructor
   - event_invitations, user_assignments, grade_settings, grade_weights
 
+If the database is brand new (no tables at all), it instead creates every
+table and loads the sample data from seed.py, so a fresh Aiven database
+works on the first deploy.
+
 It is safe to run any number of times. The Docker image runs it before
 starting the server, so a Render deploy applies it automatically. To run it
 by hand:  cd backend && .venv/bin/python migrate.py
@@ -69,6 +73,20 @@ def index_exists(cur, table, index):
     return cur.fetchone() is not None
 
 
+def table_exists(cur, table):
+    cur.execute(
+        "SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
+        (table,),
+    )
+    return cur.fetchone() is not None
+
+
+def is_empty_database(conn):
+    """True only if none of the app's original tables exist yet."""
+    with conn.cursor() as cur:
+        return not any(table_exists(cur, t) for t in ("users", "courses", "sections", "terms"))
+
+
 def migrate(conn, log=print):
     with conn.cursor() as cur:
         if not column_exists(cur, "sections", "crn"):
@@ -98,6 +116,14 @@ def migrate(conn, log=print):
 if __name__ == "__main__":
     connection = connect()
     try:
-        migrate(connection)
+        empty = is_empty_database(connection)
+        if not empty:
+            migrate(connection)
     finally:
         connection.close()
+    if empty:
+        # Only ever runs on a database with none of the app's tables, so the
+        # drop-and-recreate in seed.py cannot destroy anything.
+        print("Empty database: creating tables and loading sample data.")
+        import seed
+        seed.main()

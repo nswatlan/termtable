@@ -167,7 +167,7 @@ def connect(database=True):
         user=Config.MYSQL_USER, password=Config.MYSQL_PASSWORD,
         database=Config.MYSQL_DATABASE if database else None,
         charset="utf8mb4", autocommit=False,
-        ssl={"ca": "ca.pem"},
+        ssl={"ca": Config.MYSQL_SSL_CA},
     )
 
 
